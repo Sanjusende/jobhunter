@@ -21,17 +21,20 @@ The **AI-Powered Job Automation Agent** streamlines the tech job search pipeline
 job-automation-agent/
 ├── src/
 │   ├── config/
-│   │   ├── env.js                    # Environment parsing, type coercion, and validation
-│   │   └── database.js               # Mongoose connection lifecycle & connection pooling
+│   │   ├── candidateProfile.js       # Candidate background & skill configuration
+│   │   ├── database.js               # Mongoose connection lifecycle & connection pooling
+│   │   └── env.js                    # Environment parsing, type coercion, and validation
 │   ├── models/
 │   │   └── Job.js                    # Mongoose schema, validation rules, and compound indexes
 │   ├── scrapers/
-│   │   ├── greenhouse.js             # [Part 3] Greenhouse ATS scraper & Cheerio HTML parser
-│   │   ├── lever.js                  # [Part 4] Lever ATS scraper & multi-location resolver
-│   │   ├── ashby.js                  # [Part 5] Ashby ATS scraper & secondary location parser
+│   │   ├── ashby.js                  # Ashby ATS scraper & secondary location parser
+│   │   ├── greenhouse.js             # Greenhouse ATS scraper & Cheerio HTML parser
+│   │   ├── lever.js                  # Lever ATS scraper & multi-location resolver
 │   │   └── index.js                  # Scrapers aggregator module
 │   ├── services/
-│   │   ├── jobIngestionService.js    # [NEW - Part 6] Unified ATS scraper orchestration service
+│   │   ├── aiMatcher.js              # Google Gemini AI matching & scoring engine
+│   │   ├── emailService.js           # [NEW - Part 8] Responsive HTML email digest service (Nodemailer)
+│   │   ├── jobIngestionService.js    # Unified ATS scraper orchestration service
 │   │   └── jobRepository.js          # Data persistence, deduplication, bulk upserts & queries
 │   ├── utils/
 │   │   ├── delay.js                  # Asynchronous delay helper for rate-limiting
@@ -39,11 +42,13 @@ job-automation-agent/
 │   │   └── logger.js                 # Structured JSON logger with automatic secret redaction
 │   └── index.js                      # Express bootstrap, health check, and graceful shutdown
 ├── tests/
+│   ├── aiMatcher.test.js             # Gemini AI scoring, rate-limiting & fallback tests
 │   ├── ashby.test.js                 # Ashby scraper, location resolution & retry tests
+│   ├── emailService.test.js          # [NEW - Part 8] Nodemailer email digest & transactional notification tests
 │   ├── greenhouse.test.js            # Greenhouse scraper & HTML normalization tests
 │   ├── health.test.js                # API health endpoint integration tests
 │   ├── job.test.js                   # Schema validation, index verification & repository unit tests
-│   ├── jobIngestionService.test.js   # [NEW - Part 6] Unified scraper orchestration & fault-isolation tests
+│   ├── jobIngestionService.test.js   # Unified scraper orchestration & fault-isolation tests
 │   ├── lever.test.js                 # Lever scraper & location resolver tests
 │   └── utils.test.js                 # Utility & error serialization tests
 ├── .env.example                      # Environment configuration template
@@ -54,6 +59,25 @@ job-automation-agent/
 
 ---
 
+## 📧 Email Digest Service (Part 8)
+
+The email digest service (`src/services/emailService.js`) builds and delivers responsive, mobile-friendly HTML email summaries of top matched opportunities via Nodemailer using Gmail SMTP or custom relay servers.
+
+### Key Capabilities
+- **Transactional Delivery**: Queries top unnotified matched jobs (`status: 'matched'`, `fitScore >= threshold`, `notified: false`) sorted by `fitScore` descending. Marks jobs `notified: true` **only after** verified email delivery.
+- **Empty Digest Prevention**: If no new matching jobs exist, safely returns `{ sent: false, reason: "NO_ELIGIBLE_JOBS" }` without sending blank emails.
+- **Responsive Email Design**: Beautiful cards compatible with Gmail, Apple Mail, Outlook, and mobile clients with score badges, skill chips, and direct application links.
+- **HTML Sanitization & Safety**: Automatically escapes job titles, company names, and descriptions to prevent XSS and rendering breakages.
+- **Plain-Text Fallback**: Generates clean plain-text alternatives for clients without HTML support.
+
+---
+
+## 🧠 AI Job Matching Engine (Part 7)
+
+The AI Matching Engine (`src/services/aiMatcher.js`) leverages `@google/generative-ai` to compare pending job descriptions against candidate profiles (`src/config/candidateProfile.js`).
+
+---
+
 ## 🔄 Unified ATS Ingestion Service (Part 6)
 
 The orchestrator service (`src/services/jobIngestionService.js`) provides a single entry point `runAllScrapers()` to execute all configured ATS scrapers in sequential order:
@@ -61,63 +85,6 @@ The orchestrator service (`src/services/jobIngestionService.js`) provides a sing
 1. **Greenhouse** (`fetchAllGreenhouseJobs`)
 2. **Lever** (`fetchAllLeverJobs`)
 3. **Ashby** (`fetchAllAshbyJobs`)
-
-### Key Characteristics
-- **Sequential Execution**: Avoids network congestion while preserving rate-limit boundaries.
-- **Platform Fault-Isolation**: An unhandled exception or network outage on one ATS platform does not stop execution of subsequent platforms.
-- **Aggregated Pipeline Metrics**: Returns comprehensive summary statistics for downstream processors.
-
-#### Orchestration Output Format
-```json
-{
-  "greenhouse": {
-    "totalCompanies": 3,
-    "successfulCompanies": 3,
-    "totalJobsFetched": 150,
-    "totalJobsInserted": 20,
-    "totalDuplicatesSkipped": 130
-  },
-  "lever": {
-    "companiesProcessed": 2,
-    "jobsFetched": 89,
-    "jobsInserted": 12,
-    "duplicates": 77,
-    "failures": 0
-  },
-  "ashby": {
-    "companiesProcessed": 2,
-    "jobsFetched": 35,
-    "jobsInserted": 5,
-    "duplicates": 30,
-    "failures": 0
-  },
-  "totalFetched": 274,
-  "totalInserted": 37,
-  "totalDuplicates": 237,
-  "totalFailures": 0
-}
-```
-
----
-
-## 🔌 ATS Ingestion Scrapers
-
-### 1. Greenhouse Scraper (`src/scrapers/greenhouse.js`)
-- **Endpoint**: `GET https://boards-api.greenhouse.io/v1/boards/{company}/jobs?content=true`
-- **Sanitization**: Cheerio HTML parser strips scripts/styles and formats readable text.
-- **Batch Processing**: Configured via `GREENHOUSE_COMPANIES=stripe,airbnb,canonical`.
-
-### 2. Lever Scraper (`src/scrapers/lever.js`)
-- **Endpoint**: `GET https://api.lever.co/v0/postings/{company}?mode=json`
-- **Location Resolution**: Handles `categories.location`, `categories.allLocations` arrays, and `workplaceType` tags (Remote, Hybrid, Onsite).
-- **Description Assembly**: Intelligently combines job overview, structured requirement lists (`lists`), and compensation notes (`additional`).
-- **Batch Processing**: Configured via `LEVER_COMPANIES=spotify,netflix`.
-
-### 3. Ashby Scraper (`src/scrapers/ashby.js`)
-- **Endpoint**: `GET https://api.ashbyhq.com/posting-api/job-board/{company}`
-- **Location & Remote Parsing**: Combines primary location, `secondaryLocations` arrays, and `isRemote` flags.
-- **Description Handling**: Sanitizes `descriptionHtml` and falls back cleanly to `descriptionPlain` or `description`.
-- **Batch Processing**: Configured via `ASHBY_COMPANIES=linear,notion,retool`.
 
 ---
 
@@ -157,8 +124,22 @@ npm install
 cp .env.example .env
 ```
 
-Configure target companies in `.env`:
+Configure SMTP email and target companies in `.env`:
 ```env
+# SMTP Configuration (e.g., Gmail App Password)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=your-email@gmail.com
+SMTP_PASSWORD=your-16-character-app-password
+EMAIL_FROM="AI Job Hunter <your-email@gmail.com>"
+EMAIL_TO=recipient@example.com
+
+# Matching Limits
+AI_MATCH_THRESHOLD=70
+TOP_JOBS_LIMIT=5
+
+# Target Companies
 GREENHOUSE_COMPANIES=stripe,airbnb,canonical
 LEVER_COMPANIES=spotify,netflix
 ASHBY_COMPANIES=linear,notion,retool
@@ -193,6 +174,6 @@ curl http://localhost:5000/health
 - [x] **Part 4**: Lever ATS Scraper, Location Resolver & Description Assembly
 - [x] **Part 5**: Ashby ATS Scraper, Secondary Location Parsing & Description Extraction
 - [x] **Part 6**: Unified ATS Ingestion Orchestrator Service
-- [ ] **Part 7**: Gemini AI Semantic Evaluation & Fit Scoring
-- [ ] **Part 8**: Nodemailer Email Digest Delivery
+- [x] **Part 7**: Google Gemini AI Semantic Evaluation & Fit Scoring
+- [x] **Part 8**: Production-Grade Nodemailer Email Digest Delivery
 - [ ] **Part 9**: GitHub Actions Scheduled Automation

@@ -1,0 +1,40 @@
+{
+  "name": "ai-job-automation-agent",
+  "version": "1.0.0",
+  "description": "Production-grade AI-powered job automation agent for scraping, matching, scoring, and notifying top career opportunities.",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "lint": "eslint .",
+    "test": "jest"
+  },
+  "keywords": [
+    "job-automation",
+    "ats-scraper",
+    "gemini-ai",
+    "job-matching",
+    "nodemailer",
+    "express"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "axios": "^1.8.2",
+    "cheerio": "^1.0.0",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "mongoose": "^8.12.1",
+    "nodemailer": "^6.10.0",
+    "puppeteer": "^24.4.0"
+  },
+  "devDependencies": {
+    "eslint": "^9.21.0",
+    "jest": "^29.7.0",
+    "nodemon": "^3.1.9"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

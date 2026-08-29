@@ -4,9 +4,13 @@
  */
 
 const greenhouse = require('./greenhouse');
+const lever = require('./lever');
 
 module.exports = {
   greenhouse,
+  lever,
   fetchGreenhouseJobs: greenhouse.fetchGreenhouseJobs,
-  fetchAllGreenhouseJobs: greenhouse.fetchAllGreenhouseJobs
+  fetchAllGreenhouseJobs: greenhouse.fetchAllGreenhouseJobs,
+  fetchLeverJobs: lever.fetchLeverJobs,
+  fetchAllLeverJobs: lever.fetchAllLeverJobs
 };

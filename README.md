@@ -21,27 +21,44 @@ The **AI-Powered Job Automation Agent** streamlines the tech job search pipeline
 job-automation-agent/
 ├── src/
 │   ├── config/
-│   │   ├── env.js          # Environment parsing, type coercion, and validation
-│   │   └── database.js     # Mongoose connection lifecycle & connection pooling
+│   │   ├── env.js               # Environment parsing, type coercion, and validation
+│   │   └── database.js          # Mongoose connection lifecycle & connection pooling
 │   ├── models/
-│   │   └── Job.js          # Mongoose schema, validation rules, and compound indexes
-│   ├── scrapers/           # [Future] ATS scrapers (Greenhouse, Lever, Ashby)
+│   │   └── Job.js               # Mongoose schema, validation rules, and compound indexes
+│   ├── scrapers/
+│   │   ├── greenhouse.js        # [NEW - Part 3] Greenhouse ATS scraper & Cheerio HTML parser
+│   │   └── index.js             # [NEW - Part 3] Scrapers aggregator module
 │   ├── services/
-│   │   └── jobRepository.js # Data persistence, deduplication, bulk upserts & queries
+│   │   └── jobRepository.js     # Data persistence, deduplication, bulk upserts & queries
 │   ├── utils/
-│   │   ├── logger.js       # Structured JSON logger with automatic secret redaction
-│   │   ├── delay.js        # Asynchronous delay helper for rate-limiting
-│   │   └── errors.js       # Standardized AppError and error formatting
-│   └── index.js            # Express bootstrap, health check, and graceful shutdown
+│   │   ├── delay.js             # Asynchronous delay helper for rate-limiting
+│   │   ├── errors.js            # Standardized AppError and error formatting
+│   │   └── logger.js            # Structured JSON logger with automatic secret redaction
+│   └── index.js                 # Express bootstrap, health check, and graceful shutdown
 ├── tests/
-│   ├── health.test.js      # API health endpoint integration tests
-│   ├── job.test.js         # Schema validation, index verification & repository unit tests
-│   └── utils.test.js       # Utility & error serialization tests
-├── .env.example            # Environment configuration template
-├── .gitignore              # Git ignore rules for node_modules, secrets, and logs
-├── package.json            # Scripts and dependencies
-└── README.md               # Documentation
+│   ├── greenhouse.test.js       # [NEW - Part 3] Greenhouse scraper & HTML normalization tests
+│   ├── health.test.js           # API health endpoint integration tests
+│   ├── job.test.js              # Schema validation, index verification & repository unit tests
+│   └── utils.test.js            # Utility & error serialization tests
+├── .env.example                 # Environment configuration template
+├── .gitignore                   # Git ignore rules for node_modules, secrets, and logs
+├── package.json                 # Scripts and dependencies
+└── README.md                    # Documentation
 ```
+
+---
+
+## 🔌 Greenhouse Ingestion Scraper (Part 3)
+
+### Endpoint
+`GET https://boards-api.greenhouse.io/v1/boards/{company}/jobs?content=true`
+
+### Key Features
+- **Cheerio HTML Parser**: Safely converts HTML job content into clean, formatted plain text, removing script/style tags and preserving paragraph and list structures.
+- **Configurable Batch Scraping**: Supports comma-separated company slugs via `GREENHOUSE_COMPANIES=stripe,airbnb,canonical`.
+- **Fault-Tolerant & Isolated**: Failures on an individual company board do not halt the scraping pipeline for remaining companies.
+- **Exponential Backoff & Retries**: Automatically retries transient 5xx/network errors with exponential backoff while fast-failing on 4xx client errors.
+- **Duplicate Prevention**: Ingests new jobs into MongoDB using atomic `$setOnInsert` operations without overwriting existing records.
 
 ---
 
@@ -55,7 +72,7 @@ job-automation-agent/
 | `company` | `String` | Required, trimmed | Company name |
 | `atsSource` | `String` | Required, enum: `greenhouse`, `lever`, `ashby` | Source ATS platform |
 | `jobUrl` | `String` | Required, unique, indexed, trimmed | Canonical posting URL (used for deduplication) |
-| `description`| `String` | Default: `""` | Job description content |
+| `description`| `String` | Default: `""` | Cleaned job description text |
 | `location` | `String` | Default: `""` | Work location (e.g. Remote, City) |
 | `fitScore` | `Number` | Min: `0`, Max: `100`, Default: `null` | AI match fit score (0-100) |
 | `verdict` | `String` | Enum: `Strong Match`, `Moderate Match`, `Low Match`, `null` | Evaluated fit verdict |
@@ -65,28 +82,9 @@ job-automation-agent/
 | `notified` | `Boolean` | Default: `false`, indexed | Whether job was included in an email digest |
 | `createdAt` / `updatedAt` | `Date` | Managed via `timestamps: true` | Automatic ISO timestamps |
 
-### Compound Indexes
-- `{ status: 1, fitScore: -1 }`: Accelerates matcher queue queries.
-- `{ notified: 1, fitScore: -1 }`: Fast retrieval of top-matching unnotified jobs for daily digests.
-- `{ company: 1, atsSource: 1 }`: Optimized filtering by target company and board.
-- `{ jobUrl: 1 }` (Unique): Enforces database-level idempotency and prevents duplicates.
-
-### Repository Helpers (`src/services/jobRepository.js`)
-- `createJobIfNotExists(jobData)`: Atomically creates job or handles MongoDB duplicate key errors (code `11000`) gracefully.
-- `bulkInsertJobs(jobsArray)`: Safely bulk upserts scraped jobs using `$setOnInsert` operations.
-- `findPendingJobs(limit)`: Retrieves queued jobs awaiting AI evaluation.
-- `findTopUnnotifiedMatchedJobs(limit, minFitScore)`: Finds top opportunities for email delivery.
-- `markJobsNotified(jobIds)`: Updates notification flags in bulk.
-- `updateMatchResult(jobId, matchData)`: Updates fit scores, verdicts, and status.
-
 ---
 
 ## 🚀 Getting Started
-
-### Prerequisites
-- **Node.js**: `v18.0.0` or higher
-- **MongoDB**: Local MongoDB instance (`mongodb://127.0.0.1:27017`) or MongoDB Atlas cluster
-- **npm**: `v9.0.0` or higher
 
 ### 1. Installation
 
@@ -94,28 +92,15 @@ job-automation-agent/
 npm install
 ```
 
-### 2. MongoDB Database Setup
-
-#### Option A: Local MongoDB (Recommended for local dev)
-1. Ensure MongoDB service is running locally on port `27017`:
-   ```bash
-   mongod --dbpath <data-dir>
-   ```
-2. Set `MONGO_URI=mongodb://127.0.0.1:27017/job-automation-agent` in your `.env`.
-
-#### Option B: MongoDB Atlas (Cloud)
-1. Create a free cluster at [MongoDB Atlas](https://www.mongodb.com/cloud/atlas).
-2. Under **Network Access**, whitelist your IP address (or `0.0.0.0/0` for development).
-3. Under **Database Access**, create a database user and password (ensure special characters in password are URL-encoded).
-4. Copy the connection string into `.env`:
-   ```env
-   MONGO_URI=mongodb+srv://<username>:<password>@cluster0.xxxxx.mongodb.net/job-automation-agent?retryWrites=true&w=majority
-   ```
-
-### 3. Environment Configuration
+### 2. Environment Configuration
 
 ```bash
 cp .env.example .env
+```
+
+Set target Greenhouse companies in `.env`:
+```env
+GREENHOUSE_COMPANIES=stripe,airbnb,canonical
 ```
 
 ---
@@ -132,11 +117,6 @@ npm test
 npm run dev
 ```
 
-### Run in Production Mode
-```bash
-npm start
-```
-
 ### Verify Health Endpoint
 ```bash
 curl http://localhost:5000/health
@@ -148,7 +128,8 @@ curl http://localhost:5000/health
 
 - [x] **Part 1**: Architecture Foundation, Express bootstrap, Logging & Health check
 - [x] **Part 2**: MongoDB Job Model, Mongoose Schema, Compound Indexes & Repository Services
-- [ ] **Part 3**: ATS Scrapers (Greenhouse, Lever, Ashby)
-- [ ] **Part 4**: Gemini AI Semantic Evaluation & Fit Scoring
-- [ ] **Part 5**: Nodemailer Email Digest Delivery
-- [ ] **Part 6**: GitHub Actions Scheduled Automation
+- [x] **Part 3**: Greenhouse ATS Scraper, Cheerio Sanitization, Batch Ingestion & Duplicate Handling
+- [ ] **Part 4**: Lever & Ashby ATS Scrapers
+- [ ] **Part 5**: Gemini AI Semantic Evaluation & Fit Scoring
+- [ ] **Part 6**: Nodemailer Email Digest Delivery
+- [ ] **Part 7**: GitHub Actions Scheduled Automation

@@ -27,7 +27,8 @@ job-automation-agent/
 │   │   └── Job.js               # Mongoose schema, validation rules, and compound indexes
 │   ├── scrapers/
 │   │   ├── greenhouse.js        # [Part 3] Greenhouse ATS scraper & Cheerio HTML parser
-│   │   ├── lever.js             # [NEW - Part 4] Lever ATS scraper & multi-location resolver
+│   │   ├── lever.js             # [Part 4] Lever ATS scraper & multi-location resolver
+│   │   ├── ashby.js             # [NEW - Part 5] Ashby ATS scraper & secondary location parser
 │   │   └── index.js             # Scrapers aggregator module
 │   ├── services/
 │   │   └── jobRepository.js     # Data persistence, deduplication, bulk upserts & queries
@@ -37,10 +38,11 @@ job-automation-agent/
 │   │   └── logger.js            # Structured JSON logger with automatic secret redaction
 │   └── index.js                 # Express bootstrap, health check, and graceful shutdown
 ├── tests/
+│   ├── ashby.test.js            # [NEW - Part 5] Ashby scraper, location resolution & retry tests
 │   ├── greenhouse.test.js       # Greenhouse scraper & HTML normalization tests
 │   ├── health.test.js           # API health endpoint integration tests
 │   ├── job.test.js              # Schema validation, index verification & repository unit tests
-│   ├── lever.test.js            # [NEW - Part 4] Lever scraper, location & description assembly tests
+│   ├── lever.test.js            # Lever scraper & location resolver tests
 │   └── utils.test.js            # Utility & error serialization tests
 ├── .env.example                 # Environment configuration template
 ├── .gitignore                   # Git ignore rules for node_modules, secrets, and logs
@@ -62,6 +64,12 @@ job-automation-agent/
 - **Location Resolution**: Handles `categories.location`, `categories.allLocations` arrays, and `workplaceType` tags (Remote, Hybrid, Onsite).
 - **Description Assembly**: Intelligently combines job overview, structured requirement lists (`lists`), and compensation notes (`additional`).
 - **Batch Processing**: Configured via `LEVER_COMPANIES=spotify,netflix`.
+
+### 3. Ashby Scraper (`src/scrapers/ashby.js`)
+- **Endpoint**: `GET https://api.ashbyhq.com/posting-api/job-board/{company}`
+- **Location & Remote Parsing**: Combines primary location, `secondaryLocations` arrays, and `isRemote` flags.
+- **Description Handling**: Sanitizes `descriptionHtml` and falls back cleanly to `descriptionPlain` or `description`.
+- **Batch Processing**: Configured via `ASHBY_COMPANIES=linear,notion,retool`.
 
 ---
 
@@ -105,6 +113,7 @@ Configure target companies in `.env`:
 ```env
 GREENHOUSE_COMPANIES=stripe,airbnb,canonical
 LEVER_COMPANIES=spotify,netflix
+ASHBY_COMPANIES=linear,notion,retool
 ```
 
 ---
@@ -134,7 +143,7 @@ curl http://localhost:5000/health
 - [x] **Part 2**: MongoDB Job Model, Mongoose Schema, Compound Indexes & Repository Services
 - [x] **Part 3**: Greenhouse ATS Scraper, Cheerio Sanitization & Duplicate Handling
 - [x] **Part 4**: Lever ATS Scraper, Location Resolver & Description Assembly
-- [ ] **Part 5**: Ashby ATS Scraper
+- [x] **Part 5**: Ashby ATS Scraper, Secondary Location Parsing & Description Extraction
 - [ ] **Part 6**: Gemini AI Semantic Evaluation & Fit Scoring
 - [ ] **Part 7**: Nodemailer Email Digest Delivery
 - [ ] **Part 8**: GitHub Actions Scheduled Automation

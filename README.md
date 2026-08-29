@@ -21,33 +21,81 @@ The **AI-Powered Job Automation Agent** streamlines the tech job search pipeline
 job-automation-agent/
 ├── src/
 │   ├── config/
-│   │   ├── env.js               # Environment parsing, type coercion, and validation
-│   │   └── database.js          # Mongoose connection lifecycle & connection pooling
+│   │   ├── env.js                    # Environment parsing, type coercion, and validation
+│   │   └── database.js               # Mongoose connection lifecycle & connection pooling
 │   ├── models/
-│   │   └── Job.js               # Mongoose schema, validation rules, and compound indexes
+│   │   └── Job.js                    # Mongoose schema, validation rules, and compound indexes
 │   ├── scrapers/
-│   │   ├── greenhouse.js        # [Part 3] Greenhouse ATS scraper & Cheerio HTML parser
-│   │   ├── lever.js             # [Part 4] Lever ATS scraper & multi-location resolver
-│   │   ├── ashby.js             # [NEW - Part 5] Ashby ATS scraper & secondary location parser
-│   │   └── index.js             # Scrapers aggregator module
+│   │   ├── greenhouse.js             # [Part 3] Greenhouse ATS scraper & Cheerio HTML parser
+│   │   ├── lever.js                  # [Part 4] Lever ATS scraper & multi-location resolver
+│   │   ├── ashby.js                  # [Part 5] Ashby ATS scraper & secondary location parser
+│   │   └── index.js                  # Scrapers aggregator module
 │   ├── services/
-│   │   └── jobRepository.js     # Data persistence, deduplication, bulk upserts & queries
+│   │   ├── jobIngestionService.js    # [NEW - Part 6] Unified ATS scraper orchestration service
+│   │   └── jobRepository.js          # Data persistence, deduplication, bulk upserts & queries
 │   ├── utils/
-│   │   ├── delay.js             # Asynchronous delay helper for rate-limiting
-│   │   ├── errors.js            # Standardized AppError and error formatting
-│   │   └── logger.js            # Structured JSON logger with automatic secret redaction
-│   └── index.js                 # Express bootstrap, health check, and graceful shutdown
+│   │   ├── delay.js                  # Asynchronous delay helper for rate-limiting
+│   │   ├── errors.js                 # Standardized AppError and error formatting
+│   │   └── logger.js                 # Structured JSON logger with automatic secret redaction
+│   └── index.js                      # Express bootstrap, health check, and graceful shutdown
 ├── tests/
-│   ├── ashby.test.js            # [NEW - Part 5] Ashby scraper, location resolution & retry tests
-│   ├── greenhouse.test.js       # Greenhouse scraper & HTML normalization tests
-│   ├── health.test.js           # API health endpoint integration tests
-│   ├── job.test.js              # Schema validation, index verification & repository unit tests
-│   ├── lever.test.js            # Lever scraper & location resolver tests
-│   └── utils.test.js            # Utility & error serialization tests
-├── .env.example                 # Environment configuration template
-├── .gitignore                   # Git ignore rules for node_modules, secrets, and logs
-├── package.json                 # Scripts and dependencies
-└── README.md                    # Documentation
+│   ├── ashby.test.js                 # Ashby scraper, location resolution & retry tests
+│   ├── greenhouse.test.js            # Greenhouse scraper & HTML normalization tests
+│   ├── health.test.js                # API health endpoint integration tests
+│   ├── job.test.js                   # Schema validation, index verification & repository unit tests
+│   ├── jobIngestionService.test.js   # [NEW - Part 6] Unified scraper orchestration & fault-isolation tests
+│   ├── lever.test.js                 # Lever scraper & location resolver tests
+│   └── utils.test.js                 # Utility & error serialization tests
+├── .env.example                      # Environment configuration template
+├── .gitignore                        # Git ignore rules for node_modules, secrets, and logs
+├── package.json                      # Scripts and dependencies
+└── README.md                         # Documentation
+```
+
+---
+
+## 🔄 Unified ATS Ingestion Service (Part 6)
+
+The orchestrator service (`src/services/jobIngestionService.js`) provides a single entry point `runAllScrapers()` to execute all configured ATS scrapers in sequential order:
+
+1. **Greenhouse** (`fetchAllGreenhouseJobs`)
+2. **Lever** (`fetchAllLeverJobs`)
+3. **Ashby** (`fetchAllAshbyJobs`)
+
+### Key Characteristics
+- **Sequential Execution**: Avoids network congestion while preserving rate-limit boundaries.
+- **Platform Fault-Isolation**: An unhandled exception or network outage on one ATS platform does not stop execution of subsequent platforms.
+- **Aggregated Pipeline Metrics**: Returns comprehensive summary statistics for downstream processors.
+
+#### Orchestration Output Format
+```json
+{
+  "greenhouse": {
+    "totalCompanies": 3,
+    "successfulCompanies": 3,
+    "totalJobsFetched": 150,
+    "totalJobsInserted": 20,
+    "totalDuplicatesSkipped": 130
+  },
+  "lever": {
+    "companiesProcessed": 2,
+    "jobsFetched": 89,
+    "jobsInserted": 12,
+    "duplicates": 77,
+    "failures": 0
+  },
+  "ashby": {
+    "companiesProcessed": 2,
+    "jobsFetched": 35,
+    "jobsInserted": 5,
+    "duplicates": 30,
+    "failures": 0
+  },
+  "totalFetched": 274,
+  "totalInserted": 37,
+  "totalDuplicates": 237,
+  "totalFailures": 0
+}
 ```
 
 ---
@@ -144,6 +192,7 @@ curl http://localhost:5000/health
 - [x] **Part 3**: Greenhouse ATS Scraper, Cheerio Sanitization & Duplicate Handling
 - [x] **Part 4**: Lever ATS Scraper, Location Resolver & Description Assembly
 - [x] **Part 5**: Ashby ATS Scraper, Secondary Location Parsing & Description Extraction
-- [ ] **Part 6**: Gemini AI Semantic Evaluation & Fit Scoring
-- [ ] **Part 7**: Nodemailer Email Digest Delivery
-- [ ] **Part 8**: GitHub Actions Scheduled Automation
+- [x] **Part 6**: Unified ATS Ingestion Orchestrator Service
+- [ ] **Part 7**: Gemini AI Semantic Evaluation & Fit Scoring
+- [ ] **Part 8**: Nodemailer Email Digest Delivery
+- [ ] **Part 9**: GitHub Actions Scheduled Automation

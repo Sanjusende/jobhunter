@@ -26,8 +26,9 @@ job-automation-agent/
 │   ├── models/
 │   │   └── Job.js               # Mongoose schema, validation rules, and compound indexes
 │   ├── scrapers/
-│   │   ├── greenhouse.js        # [NEW - Part 3] Greenhouse ATS scraper & Cheerio HTML parser
-│   │   └── index.js             # [NEW - Part 3] Scrapers aggregator module
+│   │   ├── greenhouse.js        # [Part 3] Greenhouse ATS scraper & Cheerio HTML parser
+│   │   ├── lever.js             # [NEW - Part 4] Lever ATS scraper & multi-location resolver
+│   │   └── index.js             # Scrapers aggregator module
 │   ├── services/
 │   │   └── jobRepository.js     # Data persistence, deduplication, bulk upserts & queries
 │   ├── utils/
@@ -36,9 +37,10 @@ job-automation-agent/
 │   │   └── logger.js            # Structured JSON logger with automatic secret redaction
 │   └── index.js                 # Express bootstrap, health check, and graceful shutdown
 ├── tests/
-│   ├── greenhouse.test.js       # [NEW - Part 3] Greenhouse scraper & HTML normalization tests
+│   ├── greenhouse.test.js       # Greenhouse scraper & HTML normalization tests
 │   ├── health.test.js           # API health endpoint integration tests
 │   ├── job.test.js              # Schema validation, index verification & repository unit tests
+│   ├── lever.test.js            # [NEW - Part 4] Lever scraper, location & description assembly tests
 │   └── utils.test.js            # Utility & error serialization tests
 ├── .env.example                 # Environment configuration template
 ├── .gitignore                   # Git ignore rules for node_modules, secrets, and logs
@@ -48,17 +50,18 @@ job-automation-agent/
 
 ---
 
-## 🔌 Greenhouse Ingestion Scraper (Part 3)
+## 🔌 ATS Ingestion Scrapers
 
-### Endpoint
-`GET https://boards-api.greenhouse.io/v1/boards/{company}/jobs?content=true`
+### 1. Greenhouse Scraper (`src/scrapers/greenhouse.js`)
+- **Endpoint**: `GET https://boards-api.greenhouse.io/v1/boards/{company}/jobs?content=true`
+- **Sanitization**: Cheerio HTML parser strips scripts/styles and formats readable text.
+- **Batch Processing**: Configured via `GREENHOUSE_COMPANIES=stripe,airbnb,canonical`.
 
-### Key Features
-- **Cheerio HTML Parser**: Safely converts HTML job content into clean, formatted plain text, removing script/style tags and preserving paragraph and list structures.
-- **Configurable Batch Scraping**: Supports comma-separated company slugs via `GREENHOUSE_COMPANIES=stripe,airbnb,canonical`.
-- **Fault-Tolerant & Isolated**: Failures on an individual company board do not halt the scraping pipeline for remaining companies.
-- **Exponential Backoff & Retries**: Automatically retries transient 5xx/network errors with exponential backoff while fast-failing on 4xx client errors.
-- **Duplicate Prevention**: Ingests new jobs into MongoDB using atomic `$setOnInsert` operations without overwriting existing records.
+### 2. Lever Scraper (`src/scrapers/lever.js`)
+- **Endpoint**: `GET https://api.lever.co/v0/postings/{company}?mode=json`
+- **Location Resolution**: Handles `categories.location`, `categories.allLocations` arrays, and `workplaceType` tags (Remote, Hybrid, Onsite).
+- **Description Assembly**: Intelligently combines job overview, structured requirement lists (`lists`), and compensation notes (`additional`).
+- **Batch Processing**: Configured via `LEVER_COMPANIES=spotify,netflix`.
 
 ---
 
@@ -98,9 +101,10 @@ npm install
 cp .env.example .env
 ```
 
-Set target Greenhouse companies in `.env`:
+Configure target companies in `.env`:
 ```env
 GREENHOUSE_COMPANIES=stripe,airbnb,canonical
+LEVER_COMPANIES=spotify,netflix
 ```
 
 ---
@@ -128,8 +132,9 @@ curl http://localhost:5000/health
 
 - [x] **Part 1**: Architecture Foundation, Express bootstrap, Logging & Health check
 - [x] **Part 2**: MongoDB Job Model, Mongoose Schema, Compound Indexes & Repository Services
-- [x] **Part 3**: Greenhouse ATS Scraper, Cheerio Sanitization, Batch Ingestion & Duplicate Handling
-- [ ] **Part 4**: Lever & Ashby ATS Scrapers
-- [ ] **Part 5**: Gemini AI Semantic Evaluation & Fit Scoring
-- [ ] **Part 6**: Nodemailer Email Digest Delivery
-- [ ] **Part 7**: GitHub Actions Scheduled Automation
+- [x] **Part 3**: Greenhouse ATS Scraper, Cheerio Sanitization & Duplicate Handling
+- [x] **Part 4**: Lever ATS Scraper, Location Resolver & Description Assembly
+- [ ] **Part 5**: Ashby ATS Scraper
+- [ ] **Part 6**: Gemini AI Semantic Evaluation & Fit Scoring
+- [ ] **Part 7**: Nodemailer Email Digest Delivery
+- [ ] **Part 8**: GitHub Actions Scheduled Automation

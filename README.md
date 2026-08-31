@@ -154,6 +154,11 @@ ASHBY_COMPANIES=linear,notion,retool
 npm test
 ```
 
+### Run Complete Pipeline Locally
+```bash
+npm run jobs
+```
+
 ### Run in Development Mode
 ```bash
 npm run dev
@@ -163,6 +168,48 @@ npm run dev
 ```bash
 curl http://localhost:5000/health
 ```
+
+---
+
+## ⚙️ GitHub Actions Scheduled Automation (Part 10)
+
+The application includes an automated CI/CD workflow (`.github/workflows/job_hunter.yml`) that runs the complete pipeline on GitHub's hosted runners.
+
+### Execution Triggers
+- **Daily Cron Schedule**: Automatically executes every day at **`06:00 UTC`** (which corresponds to **`11:30 AM IST`**).
+- **Manual Trigger**: Can be manually triggered on-demand at any time from the GitHub repository via **`workflow_dispatch`** (under the **Actions** tab -> **AI Job Hunter Automation** -> **Run workflow**).
+
+### Security & Reliability Features
+- **Concurrency Protection**: Uses `concurrency: { group: job-hunter-workflow, cancel-in-progress: false }` to prevent overlapping runs.
+- **Minimal Permissions**: Configured with strict read-only repository permissions (`contents: read`).
+- **Pipeline Timeout**: Protected with a 15-minute `timeout-minutes` ceiling.
+- **Fail-Fast Visibility**: Runs `npm test` before `npm run jobs` and surfaces any step failures in GitHub Actions.
+
+### Configuring GitHub Secrets
+
+To enable the automated workflow in your GitHub repository, configure your secrets under:
+**Repository Settings** $\rightarrow$ **Secrets and variables** $\rightarrow$ **Actions** $\rightarrow$ **New repository secret**
+
+| Secret Name | Description | Example / Recommended Value |
+| :--- | :--- | :--- |
+| `MONGO_URI` | MongoDB connection string (Atlas or hosted) | `mongodb+srv://user:pass@cluster.mongodb.net/jobs?retryWrites=true&w=majority` |
+| `GEMINI_API_KEY` | Google Gemini AI API key | `AIzaSy...` |
+| `GEMINI_MODEL` | Gemini AI model name | `gemini-1.5-flash` |
+| `SMTP_HOST` | SMTP server host | `smtp.gmail.com` |
+| `SMTP_PORT` | SMTP port | `465` |
+| `SMTP_SECURE` | Use TLS/SSL | `true` |
+| `SMTP_USER` | SMTP email username | `your-email@gmail.com` |
+| `SMTP_PASSWORD` | SMTP password / Gmail App Password | `abcd efgh ijkl mnop` |
+| `EMAIL_FROM` | Sender display and email | `"AI Job Hunter" <your-email@gmail.com>` |
+| `EMAIL_TO` | Recipient email address | `candidate@example.com` |
+| `GREENHOUSE_COMPANIES`| Comma-separated Greenhouse company board tokens | `stripe,airbnb,canonical` |
+| `LEVER_COMPANIES` | Comma-separated Lever company site names | `spotify,netflix` |
+| `ASHBY_COMPANIES` | Comma-separated Ashby company job board tokens | `linear,notion,retool` |
+| `AI_MATCH_THRESHOLD` | Minimum score (0-100) to classify as `matched` | `70` |
+| `TOP_JOBS_LIMIT` | Maximum top jobs to dispatch per digest email | `5` |
+
+> [!IMPORTANT]
+> Never commit `.env` files to git. All credentials and configurations in CI/CD are injected strictly via GitHub Actions Secrets.
 
 ---
 
@@ -176,4 +223,5 @@ curl http://localhost:5000/health
 - [x] **Part 6**: Unified ATS Ingestion Orchestrator Service
 - [x] **Part 7**: Google Gemini AI Semantic Evaluation & Fit Scoring
 - [x] **Part 8**: Production-Grade Nodemailer Email Digest Delivery
-- [ ] **Part 9**: GitHub Actions Scheduled Automation
+- [x] **Part 9**: Complete Application Orchestrator & CLI Runner
+- [x] **Part 10**: GitHub Actions Scheduled Automation & Secrets Configuration

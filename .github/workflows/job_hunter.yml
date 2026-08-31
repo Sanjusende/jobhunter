@@ -1,0 +1,58 @@
+name: AI Job Hunter Automation
+
+on:
+  schedule:
+    # Runs every day at 06:00 UTC (11:30 AM IST)
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+# Ensure only one instance of the pipeline runs at a time
+concurrency:
+  group: job-hunter-workflow
+  cancel-in-progress: false
+
+# Minimal permissions required for repository access
+permissions:
+  contents: read
+
+jobs:
+  job-hunter:
+    name: Execute Job Hunter Pipeline
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run test suite
+        run: npm test
+
+      - name: Run AI Job Hunter pipeline
+        run: npm run jobs
+        env:
+          NODE_ENV: production
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_SECURE: ${{ secrets.SMTP_SECURE }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          GREENHOUSE_COMPANIES: ${{ secrets.GREENHOUSE_COMPANIES }}
+          LEVER_COMPANIES: ${{ secrets.LEVER_COMPANIES }}
+          ASHBY_COMPANIES: ${{ secrets.ASHBY_COMPANIES }}
+          AI_MATCH_THRESHOLD: ${{ secrets.AI_MATCH_THRESHOLD }}
+          TOP_JOBS_LIMIT: ${{ secrets.TOP_JOBS_LIMIT }}
